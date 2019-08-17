@@ -4310,7 +4310,7 @@
 				update["matrix_mod"] = tot;
 				update["matrix_dice"] = dice;
 
-				(mat != 0) ? update["display_matrix_mod"] = `${bas} (${tot})` : tot;
+				update["display_matrix_mod"] = (mat != 0) ? `${bas} (${tot})` : tot;
 
 				setAttrs(update);
 			});
