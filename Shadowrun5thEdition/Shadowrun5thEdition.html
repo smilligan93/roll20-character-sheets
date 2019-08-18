@@ -3158,707 +3158,6 @@
 		};
     };
 
-   on("clicked:import_chummer", (eventinfo) => {
-    	getAttrs([`chummer_text`], (v) => {
-        var ok = true;
-        try {
-          var chummerfile = JSON.parse(v.chummer_text);
-        } catch (e) {
-          ok = false;
-          setAttrs({
-            chummer_text: "Unable to parse file: " + e
-          });
-        }
-        // file parse is good
-        if (ok) {
-          // clear all repeating rows
-          ['active', 'knowledge', 'language', 'quality', 'martial', 'range', 'melee',
-            'weapon', 'armor', 'augementations', 'items', 'NPCspell', 'spell', 'rituals',
-            'preps', 'powers', 'contacts', 'vehicle'].forEach(group => {
-            getSectionIDs("repeating_"+group, (ids) => {
-              for (let i = 0; i < ids.length; i++) {
-                removeRepeatingRow("repeating_"+group+"_"+ids[i]);
-              }
-            });
-          });
-
-          function getValInParen(value) {
-            // regex to capture value inside () or single number
-            let l = value.match(/([0-9]+)(?:([0-9]+))*/g);
-            if (l != null) {
-              return (l.length > 1 ? l[1] : l[0])
-            } else {
-              return value;
-            }
-          }
-
-          let update = {};
-          let error = "";
-          // character info stuff, also techno/magic and essence
-          if (chummerfile.characters
-              && chummerfile.characters.character) {
-            let c = chummerfile.characters.character;
-            try {
-              if (c.name != null) {
-                update.character_name = c.name;
-              }
-              if (c.playername != null) {
-                update.player_name = c.playername;
-              }
-              if (c.alias != null) {
-                update.name = c.alias;
-              }
-              if (c.metatype != null) {
-                update.metatype = c.metatype;
-              }
-              if (c.sex != null) {
-                update.sex = c.sex;
-              }
-              if (c.age != null) {
-                update.age = c.age;
-              }
-              if (c.height != null) {
-                update.height = c.height;
-              }
-              if (c.weight != null) {
-                update.weight = c.weight;
-              }
-              if (c.calculatedstreetcred != null) {
-                update.street_cred = c.calculatedstreetcred;
-              }
-              if (c.calculatednotoriety != null) {
-                update.notoriety = c.calculatednotoriety;
-              }
-              if (c.calculatedpublicawareness != null) {
-                update.public_awareness = c.calculatedpublicawareness;
-              }
-              if (c.karma != null) {
-                update.karma = c.karma;
-              }
-              if (c.totalkarma != null) {
-                update.total_karma = c.totalkarma;
-              }
-              if (c.technomancer != null && c.technomancer.toUpperCase() === "TRUE") {
-                update.flag_special = "resonance";
-              }
-              if (c.magician != null && c.magician.toUpperCase() === "TRUE") {
-                update.flag_special = "magic";
-              }
-              if (c.totaless != null) {
-                update.essence = c.totaless;
-              }
-              if (c.nuyen != null) {
-                update.primary_nuyen = c.nuyen;
-              }
-            } catch (e) {
-                error += "Error with character info: " + e + ". ";
-            }
-            // update attributes
-            try {
-              let atts = chummerfile.characters.character.attributes[1].attribute;
-              for (let i = 0; i < atts.length; i++) {
-                let att = atts[i];
-                if (att.name.toUpperCase() === "BOD") {
-                  update.body_base = att.base;
-                  update.body_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "AGI") {
-                  update.agility_base = att.base;
-                  update.agility_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "REA") {
-                  update.reaction_base = att.base;
-                  update.reaction_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "STR") {
-                  update.strength_base = att.base;
-                  update.strength_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "CHA") {
-                  update.charisma_base = att.base;
-                  update.charisma_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "INT") {
-                  update.intuition_base = att.base;
-                  update.intuition_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "LOG") {
-                  update.logic_base = att.base;
-                  update.logic_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "WIL") {
-                  update.willpower_base = att.base;
-                  update.willpower_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "EDG") {
-                  update.edge = att.base;
-                } else if (att.name.toUpperCase() === "MAG") {
-                  update.magic_base = att.base;
-                  update.magic_modifier = att.total - att.base;
-                } else if (att.name.toUpperCase() === "RES") {
-                  update.resonance_base = att.base;
-                  update.resonance_modifier = att.total - att.base;
-                }
-              }
-            } catch (e) {
-                error += "Error with attributes: " + e + ". ";
-            }
-            // initiative stuff
-            try {
-              if (c.initbonus != null) {
-                // not sure if this one is correct
-                update.initiative_modifier = c.initbonus;
-                update.astral_mod_modifier = c.initbonus;
-                update.matrix_mod_modifier = c.initbonus;
-              }
-              if (c.initdice != null) {
-                update.initiative_dice_modifier = c.initdice - 1;
-              }
-            } catch (e) {
-                error += "Error with initiative: " + e + ". ";
-            }
-            // skills... ugh
-            try {
-              let skills = c.skills.skill;
-              for (let i = 0; i < skills.length; i++) {
-                let s = skills[i];
-                if (s.rating > 0) {
-                  let id = generateRowID();
-
-                  let group = "active";
-                  if (s.knowledge.toUpperCase() === "TRUE") {
-                    group = "knowledge";
-                  } else if (s.islanguage != null && s.islanguage.toUpperCase() === "TRUE") {
-                    group = "language";
-                  }
-
-                  update[s.name.toLowerCase().replace(" ", "")] = s.rating;
-                  // update["repeating_"+group+"_"+id+"_flag"] = "False";
-                  update["repeating_"+group+"_"+id+"_skill"] = s.name;
-                  update["repeating_"+group+"_"+id+"_dicepool"] = s.rating;
-                  update["repeating_"+group+"_"+id+"_rating"] = s.rating;
-                  update["repeating_"+group+"_"+id+"_display_rating"] = s.rating;
-
-                  if (s.skillspecializations != null) {
-                    let spec = s.skillspecializations.skillspecialization.name;
-                    update["repeating_"+group+"_"+id+"_specialization"] = spec;
-                    update["repeating_"+group+"_"+id+"_display_specialization"] = "("+spec+")";
-
-                    let specbonus = "0";
-                    // if this is a standard hummer output
-                    if (s.specbonus != null) {
-                      specbonus = s.specbonus;
-                    } else if (!s.name.toLowerCase().includes("exotic")) {
-                      // the HeroLab chummer export does not provide specbonus, so a little hacky workaround
-                      specbonus = "2"; // this should always be the case if not using an exotic weapon
-                    }
-
-                    if (parseInt(specbonus) > 0) {
-                      let total = parseInt(s.rating) + parseInt(specbonus);
-                      update["repeating_"+group+"_"+id+"_display_rating"] = s.rating+" ("+total+")";
-                    }
-                    update["repeating_"+group+"_"+id+"_rating_modifier"] = specbonus;
-                  }
-
-                  let att = s.attribute;
-                  let skatt = "";
-                  let limit = "-";
-                  if (att.toUpperCase() === "BOD") {
-                    skatt = "Body";
-                    limit = "Physical Limit";
-                  } else if (att.toUpperCase() === "AGI") {
-                    skatt = "Agility";
-                    limit = "Physical Limit";
-                  } else if (att.toUpperCase() === "REA") {
-                    skatt = "Reaction";
-                    limit = "Physical Limit";
-                  } else if (att.toUpperCase() === "STR") {
-                    skatt = "Strength";
-                    limit = "Physical Limit";
-                  } else if (att.toUpperCase() === "CHA") {
-                    skatt = "Charisma";
-                    limit = "Social Limit";
-                  } else if (att.toUpperCase() === "INT") {
-                    skatt = "Intuition";
-                    limit = "Mental Limit";
-                  } else if (att.toUpperCase() === "LOG") {
-                    skatt = "Logic";
-                    limit = "Mental Limit";
-                  } else if (att.toUpperCase() === "WIL") {
-                    skatt = "Willpower";
-                    limit = "Mental Limit";
-                  } else if (att.toUpperCase() === "MAG") {
-                    skatt = "Magic";
-                  } else if (att.toUpperCase() === "RES") {
-                    skatt = "Resonance";
-                  }
-
-                  let vskatt = "@{"+skatt.toLowerCase()+"}";
-                  update["repeating_"+group+"_"+id+"_attribute"] = vskatt;
-                  update["repeating_"+group+"_"+id+"_display_attribute"] = skatt+" "+vskatt;
-                  let vlimit = "@{"+limit.toLowerCase().replace(" ", "_")+"}";
-                  update["repeating_"+group+"_"+id+"_limit"] = vlimit;
-                  update["repeating_"+group+"_"+id+"_display_limit"] = limit+" "+vlimit;
-                }
-              }
-            } catch (e) {
-                error += "Error with skills: " + e + ". ";
-            }
-            // qualities
-            try {
-              let qualities = c.qualities.quality;
-              for (let i = 0; i < qualities.length; i++) {
-                let q = qualities[i];
-                let id = generateRowID();
-
-                update["repeating_quality_"+id+"_quality"] = q.name;
-                update["repeating_quality_"+id+"_type"] = q.qualitytype.substr(0,1);
-              }
-            } catch (e) {
-                error += "Error with qualities: " + e + ". ";
-            }
-            // martial arts
-            try {
-              if (c.martialarts != null) { // HeroLab doesn't output martial arts 
-                let martialarts = c.martialarts.martialart;
-                for (let i = 0; i < martialarts.length; i++) {
-                  let m = martialarts[i];
-                  // martialarttechnique can be a list OR an object.................fml
-                  if (Array.isArray(m.martialarttechniques.martialarttechnique)) {
-                    for (let j = 0; j < m.martialarttechniques.martialarttechnique.length; j++) {
-                      let id = generateRowID();
-                      let t = m.martialarttechniques.martialarttechnique[j];
-
-                      update["repeating_martial_"+id+"_technique"] = t.name;
-                      update["repeating_martial_"+id+"_style"] = m.name;
-                    }
-                  } else {
-                    let id = generateRowID();
-                    let t = m.martialarttechniques.martialarttechnique;
-
-                    update["repeating_martial_"+id+"_technique"] = t.name;
-                    update["repeating_martial_"+id+"_style"] = m.name;
-                  }
-                }
-              }
-            } catch (e) {
-                error += "Error with martial arts: " + e + ". ";
-            }
-            // weapons
-            try {
-              let weapons = c.weapons.weapon;
-              for (let i = 0; i < weapons.length; i++) {
-                let id = generateRowID();
-                let w = weapons[i];
-                let rw = "repeating_weapon_";
-                let rr = "repeating_range_";
-                let rm = "repeating_melee_";
-
-                if (w.type.toUpperCase() === "MELEE") {
-                  update[rm+id+"_weapon"] = w.name;
-                  update[rm+id+"_reach"] = w.reach;
-                  update[rm+id+"_damage"] = w.damage_english;
-                  update[rm+id+"_acc"] = w.accuracy;
-                  update[rm+id+"_ap"] = w.ap;
-                  update[rm+id+"_dicepool"] = getValInParen(w.dicepool);
-                  let skill = "";
-                  if (w.category.toUpperCase() === "EXOTIC MELEE WEAPON") {
-                    skill = "0";
-                  } else {
-                    skill = "@{" + w.skill.toLowerCase().replace(" ", "") + "}";
-                  }
-                  update[rm+id+"_skill"] = skill;
-                } else if (w.type.toUpperCase() === "RANGED") {
-                  update[rr+id+"_weapon"] = w.name;
-                  update[rr+id+"_damage"] = w.damage_english;
-                  update[rr+id+"_ap"] = w.ap;
-                  update[rr+id+"_recoil"] = getValInParen(w.rc);
-                  update[rr+id+"_dicepool"] = getValInParen(w.dicepool);
-                  update[rr+id+"_acc"] = getValInParen(w.accuracy);
-
-                  let skill = "";
-                  if (w.category.toUpperCase() === "EXOTIC RANGED WEAPON") {
-                    skill = "0";
-                  } else {
-                    skill = "@{" + w.skill.toLowerCase().replace(" ", "") + "}";
-                  }
-                  update[rr+id+"_skill"] = skill;
-
-                  if (w.mode != null) { // HeroLab export doesn't have mode
-                    update[rr+id+"_mode"] = w.mode;
-                  }
-
-                  if (w.clips != null) { // HeroLab export doesn't have clips
-                    update[rr+id+"_ammo"] = w.clips.clip.count;
-                  }
-
-                  if (w.ranges != null) { // HeroLab export doesn't have ranges
-                    let range = w.ranges.short.split("-")[1] + "/"
-                                + w.ranges.medium.split("-")[1] + "/"
-                                + w.ranges.long.split("-")[1] + "/"
-                                + w.ranges.extreme.split("-")[1] + "/";
-                    update[rr+id+"_range"] = range;
-                  }
-                }
-
-                // add weapon to NPC page now
-                id = generateRowID();
-                let isRanged = w.type.toUpperCase() === "RANGED";
-                update[rw+id+"_weapon_range"] = ( isRanged ? 0 : 1);
-                update[rw+id+"_weapon_name"] = w.name;
-                update[rw+id+"_weapon_type"] = w.category;
-                update[rw+id+"_weapon_dv"] = w.damage_english;
-                update[rw+id+"_weapon_ap"] = w.ap;
-
-                update[rw+id+"_weapon_dice"] = getValInParen(w.dicepool);
-                update[rw+id+"_weapon_acc"] = getValInParen(w.accuracy);
-
-                if (isRanged) {
-                  update[rw+id+"_weapon_rc"] = w.rc;
-                  if (w.mode != null) { // HeroLab export doesn't have mode
-                    update[rw+id+"_weapon_mode"] = w.mode;
-                  }
-                  if (w.clips != null) { // HeroLab export doesn't have clips
-                    update[rw+id+"_weapon_ammo"] = w.clips.clip.count;
-                  }
-                } else { // is melee
-                  update[rw+id+"_weapon_reach"] = w.reach;
-                }
-              }
-            } catch (e) {
-                error += "Error with weapons: " + e + ". ";
-            }
-            // armor
-            try {
-              let armors = c.armors.armor;
-              let equippedArmorName = "";
-              let equippedArmorBase = 0;
-              let equippedArmorMod = 0;
-              let equippedArmorRad = 0;
-              let equippedArmorFire = 0;
-              let equippedArmorCold = 0;
-              let equippedArmorElec = 0;
-              let equippedArmorAcid = 0;
-              let equippedArmorDesc = "";
-              let ra = "repeating_armor_";
-              for (let i = 0; i < armors.length; i++) {
-                let a = armors[i];
-
-                let name = "";
-                let base = 0;
-                let mod = 0;
-                let rad = 0;
-                let fire = 0;
-                let cold = 0;
-                let elec = 0;
-                let acid = 0;
-                let desc = "";
-
-                let isBonus = a.armor.includes("+");
-                if (isBonus) {
-                  mod += parseInt(a.armor.replace("+", ""));
-                  // add desc to end
-                  desc += a.name + ": " + a.armor + "|";
-                } else {
-                  base = parseInt(a.armor);
-                  name = a.name;
-                }
-                if (a.armormods != null && a.armormods.armormod != null) {
-                  let modDesc = [];
-                  for (let j = 0; j < a.armormods.armormod.length; j++) {
-                    let mod = a.armormods.armormod[j];
-                    if (mod.name.toLowerCase().includes("fire resistance")) {
-                      fire += parseInt(mod.rating);
-                    } else if (mod.name.toLowerCase().includes("nonconductivity")) {
-                      elec += parseInt(mod.rating);
-                    } else if (mod.name.toLowerCase().includes("insulation")) {
-                      cold += parseInt(mod.rating);
-                    } else if (mod.name.toLowerCase().includes("radiation shielding")) {
-                      rad += parseInt(mod.rating);
-                    }
-
-                    if (mod.rating != "") {
-                      modDesc.push(mod.name + " R" + mod.rating);
-                    } else {
-                      modDesc.push(mod.name);
-                    }
-                  }
-
-                  if (modDesc.length > 0) {
-                    if (isBonus) {
-                      // add desc to end
-                      desc += a.name + " has: " + modDesc.join(",") + "|";
-                    } else {
-                      // add desc to beginning
-                      desc = modDesc.join(",") + "|" + desc;
-                    }
-                  }
-                }
-                if (a.equipped.toUpperCase() === "TRUE") {
-                  if (isBonus) {
-                    equippedArmorMod += mod;
-                    equippedArmorDesc += desc;
-                  } else {
-                    equippedArmorBase = base;
-                    equippedArmorName = name;
-                    equippedArmorDesc = desc + equippedArmorDesc;
-                  }
-                  equippedArmorFire += fire;
-                  equippedArmorCold += cold;
-                  equippedArmorAcid += acid;
-                  equippedArmorRad += rad;
-                  equippedArmorElec += elec;
-
-                } else { // if not equipped, add it as its own armor
-                  let id = generateRowID();
-                  update[ra+id+"_name"] = a.name; // could be a bouns armor, grab name directly from armor
-                  update[ra+id+"_rating"] = base;
-                  update[ra+id+"_acid_modifier"] = acid;
-                  update[ra+id+"_cold_modifier"] = cold;
-                  update[ra+id+"_electrical_modifier"] = elec;
-                  update[ra+id+"_fire_modifier"] = fire;
-                  update[ra+id+"_radiation_modifier"] = rad;
-                  update[ra+id+"_dicepool_modifier"] = mod;
-                  update[ra+id+"_notes"] = desc;
-                }
-              }
-              // add equipped armor to update;
-              let id = generateRowID();
-              update[ra+id+"_name"] = equippedArmorName;
-              update[ra+id+"_rating"] = equippedArmorBase;
-              update[ra+id+"_acid_modifier"] = equippedArmorAcid;
-              update[ra+id+"_cold_modifier"] = equippedArmorCold;
-              update[ra+id+"_electrical_modifier"] = equippedArmorElec;
-              update[ra+id+"_fire_modifier"] = equippedArmorFire;
-              update[ra+id+"_radiation_modifier"] = equippedArmorRad;
-              update[ra+id+"_dicepool_modifier"] = equippedArmorMod;
-              update[ra+id+"_notes"] = equippedArmorDesc;
-
-            } catch (e) {
-              error += "Error with armor: " + e + ". ";
-            }
-            // augs
-            try {
-              if (c.cyberwares != null && c.cyberwares.cyberware != null) {
-                let cyberwares = c.cyberwares.cyberware;
-                let ra = "repeating_augementations_";
-                for (let i = 0; i < cyberwares.length; i++) {
-                  let cy = cyberwares[i];
-                  let id = generateRowID();
-                  update[ra+id+"_augmentation"] =cy.name;
-                  update[ra+id+"_rating"] = cy.rating;
-                  update[ra+id+"_essence"] = cy.ess;
-                  update[ra+id+"_notes"] = "Grade: " + cy.grade;
-                }
-              }
-            } catch (e) {
-              error += "Error with augmentations: " + e + ". ";
-            }
-            // gear
-            try {
-              if (c.gears != null && c.gears.gear != null) {
-                let gears = c.gears.gear;
-                let ri = "repeating_items_";
-                let licenses = [];
-                for (let i = 0; i < gears.length; i++) {
-                  let g = gears[i];
-                  if (g.name.toLowerCase() === "fake license") {
-                    // add licenses to lifestyle
-                    if (g.extra != null) {
-                      licenses.push(g.extra.replace(" License", ""));
-                    }
-                  } else if (g.name.toLowerCase() === "fake sin") {
-                    if (g.children != null && g.children.gear != null) {
-                      g.children.gear.forEach(child => {
-                        if (child.name != null 
-                            && child.name.toLowerCase() === "fake license"
-                            && child.extra != null) {
-                          licenses.push(child.extra.replace(" License", ""));
-                        }
-                      });
-                    }
-                    // add fake sin TODO
-                  } else {
-                    let id = generateRowID();
-                    update[ri+id+"_item"] = g.name;
-                    if (g.rating != null) {
-                      update[ri+id+"_rating"] = g.rating;
-                    }
-                    let desc = "Quanity: " + g.qty + ". ";
-                    // may add more to description here
-                    update[ri+id+"_notes"] = desc;
-                  }
-                }
-                update.primary_licenses = licenses.join(", ");
-              }
-            } catch (e) {
-              error += "Error with gear: " + e + ". ";
-            }
-            // spells
-            try {
-              if (c.spells != null && c.spells.spell != null) {
-                let spells = c.spells.spell;
-                for (let i = 0; i < spells.length; i++) {
-                  let s = spells[i];
-                  ["repeating_spell_", "repeating_NPCspell_", "repeating_preps_"].forEach(rs => {
-                    // don't continue if adding to spell and is alchemy or adding to alchemy and is spell
-                    if ((s.alchemy.toUpperCase() === "TRUE" && rs != "repeating_spell_")
-                        || (s.alchemy.toUpperCase() === "FALSE" && rs != "repeating_preps_")) {
-                      let id = generateRowID();
-
-                      update[rs+id+"_category"] = s.category;
-                      update[rs+id+"_dice"] = getValInParen(s.dicepool);
-                      update[rs+id+"_name"] = s.name;
-                      update[rs+id+"_type"] = s.type;
-                      update[rs+id+"_range"] = s.range;
-                      update[rs+id+"_drain"] = s.dv.replace("F", "");
-                      update[rs+id+"_notes"] = s.descriptors;
-                      update[rs+id+"_note"] = s.descriptors;
-
-                      if (s.category.toUpperCase() === "COMBAT") {
-                        let combattype = "";
-                        if (s.descriptors.toUpperCase().includes("DIRECT")) {
-                          combattype = "Direct, Force ";
-                        } else if (s.descriptors.toUpperCase().includes("INDIRECT")) {
-                          combattype = "Indirect, Force ?{Force|}, AP -";
-                        }
-                        update[rs+id+"_combat_type"] = combattype;
-                      }
-
-                      let duration = "";
-                      if (s.duration.toUpperCase() === "S") {
-                        duration = "Sustained";
-                      } else if (s.duration.toUpperCase() === "I") {
-                        duration = "Instant";
-                      } else if (s.duration.toUpperCase() === "P") {
-                        duration = "Permanent";
-                      } else {
-                        duration = "Special";
-                      }
-                      update[rs+id+"_duration"] = duration;
-                    }
-                  });
-                }
-              }
-            } catch (e) {
-              error += "Error with spells: " + e + ". ";
-            }
-            // powers
-            try {
-              if (c.powers != null && c.powers.power != null) {
-                let powers = c.powers.power;
-                let rp = "repeating_powers_";
-                for (let i = 0; i < powers.length; i++) {
-                  let p = powers[i];
-                  let id = generateRowID();
-
-                  update[rp+id+"_name"] = (p.fullname != null ? p.fullname : p.name);
-                  update[rp+id+"_rating"] = p.rating;
-                  let desc = "";
-                  if (p.totalpoints != null) {
-                    desc += "Total Points: " + p.totalpoints + ". ";
-                  }
-                  if (p.source != null && p.page != null) {
-                    desc += p.source + " " + p.page;
-                  }
-                  update[rp+id+"_notes"] = desc;
-                }
-              }
-            } catch (e) {
-              error += "Error with powers: " + e + ". ";
-            }
-            // matrix
-            try {
-              // TODO
-            } catch (e) {
-              error += "Error with matrix: " + e + ". ";
-            }
-            // complex forms
-            try {
-              // TODO
-            } catch (e) {
-              error += "Error with matrix: " + e + ". ";
-            }
-            // lifestyle
-            try {
-              if (c.lifestyles != null && c.lifestyles.lifestyle != null) {
-                let lifestyles = c.lifestyles.lifestyle;
-                let l;
-                if (Array.isArray(lifestyles)) {
-                  l = lifestyles[0];
-                } else {
-                  l = lifestyles;
-                }
-                update.primary_lifestyle = l.name;
-              }
-            } catch (e) {
-              error += "Error with lifestyles: " + e + ". ";
-            }
-            // contacts
-            try {
-              if (c.contacts != null && c.contacts.contact != null) {
-                let contacts = c.contacts.contact;
-                let rc = "repeating_contacts_";
-                for (let i = 0; i < contacts.length; i++) {
-                  let co = contacts[i];
-                  let id = generateRowID();
-
-                  update[rc+id+"_name"] = co.name;
-                  update[rc+id+"_loyalty"] = co.loyalty;
-                  update[rc+id+"_connection"] = co.connection;
-
-                  let desc = "";
-                  if (co.role != null) {
-                    desc += "Role: " + co.role + ". ";
-                  }
-                  if (co.metatype != null) {
-                    desc += "Meta: " + co.metatype + ". ";
-                  }
-                  if (co.sex != null) {
-                    desc += "Sex: " + co.sex + ". ";
-                  }
-                  if (co.age != null) {
-                    desc += "Age: " + co.age + ". ";
-                  }
-                  update[rc+id+"_notes"] = desc;
-                }
-              }
-            } catch (e) {
-              error += "Error with contacts: " + e + ". ";
-            }
-            // vehicles
-            try {
-              if (c.vehicles != null && c.vehicles.vehicle != null) {
-
-                function getSplitNum(value) {
-                  return value.split("/")[0];
-                }
-
-                let rv = "repeating_vehicle_";
-                let vehicles = []
-                if (Array.isArray(c.vehicles.vehicle)) {
-                  vehicles = c.vehicles.vehicle;
-                } else {
-                  vehicles.push(c.vehicles.vehicle)
-                }
-                vehicles.forEach((v) => {
-                  let id = generateRowID();
-                  
-                  update[rv+id+"_name"] = v.name;
-                  update[rv+id+"_handling_base"] = getSplitNum(v.handling);
-                  update[rv+id+"_acceleration_base"] = getSplitNum(v.accel);
-                  update[rv+id+"_speed_base"] = getSplitNum(v.speed);
-                  update[rv+id+"_body_base"] = getSplitNum(v.body);
-                  update[rv+id+"_armor_base"] = getSplitNum(v.armor);
-                  update[rv+id+"_sensor_base"] = getSplitNum(v.sensor);
-                  update[rv+id+"_pilot_base"] = v.pilot;
-                });
-              }
-            } catch (e) {
-              error += "Error with vehicles: " + e + ". ";
-            }
-          }
-          if (error != "") {
-            update.chummer_text = error;
-          } else {
-            update.chummer_text = "Compelete! Be sure to review everything and add matrix.\nBe sure to set primary weapons and armor, set specializations for spells/weapons/etc.\nSet modifiers applied from Adept powers/cyberware."
-          }
-          setAttrs(update);
-        }
-		});
-	});
 
     on("clicked:shots_remove clicked:shots_add", (eventinfo) => {
     	getAttrs([`shots_fired`], (v) => {
@@ -4754,6 +4053,1389 @@
 	            });
 	        });
 	    });
+
+   on("clicked:import_chummer", (eventinfo) => {
+    	getAttrs([`chummer_text`], (v) => {
+        var ok = true;
+        try {
+          var text = JSON.parse(v.chummer_text);
+        } catch (e) {
+          ok = false;
+          setAttrs({
+            chummer_text: "Unable to parse file: " + e
+          });
+        }
+        // file parse is good
+        if (ok) {
+          // clear all repeating rows
+          ['active', 'knowledge', 'language', 'quality', 'martial', 'range', 'melee',
+            'weapon', 'armor', 'augementations', 'items', 'NPCspell', 'spell', 'rituals',
+            'preps', 'powers', 'contacts', 'vehicle'].forEach(group => {
+            getSectionIDs("repeating_"+group, (ids) => {
+              for (let i = 0; i < ids.length; i++) {
+                removeRepeatingRow("repeating_"+group+"_"+ids[i]);
+              }
+            });
+          });
+          if (text.characters != null) {
+            importChummer(text);
+          } else {
+            importHeroLab(text);
+          }
+        }
+		});
+	});
+
+const getValInParen = (value) => {
+  // regex to capture value inside () or single number
+  let l = value.match(/([0-9]+)(?:([0-9]+))*/g);
+  if (l != null) {
+    return (l.length > 1 ? l[1] : l[0])
+  } else {
+    return value;
+  }
+};
+
+function importChummer(chummerfile) {
+  let update = {};
+  let error = "";
+  // character info stuff, also techno/magic and essence
+  if (chummerfile.characters
+      && chummerfile.characters.character) {
+    let c = chummerfile.characters.character;
+    try {
+      if (c.name != null) {
+        update.character_name = c.name;
+      }
+      if (c.playername != null) {
+        update.player_name = c.playername;
+      }
+      if (c.alias != null) {
+        update.name = c.alias;
+      }
+      if (c.metatype != null) {
+        update.metatype = c.metatype;
+      }
+      if (c.sex != null) {
+        update.sex = c.sex;
+      }
+      if (c.age != null) {
+        update.age = c.age;
+      }
+      if (c.height != null) {
+        update.height = c.height;
+      }
+      if (c.weight != null) {
+        update.weight = c.weight;
+      }
+      if (c.calculatedstreetcred != null) {
+        update.street_cred = c.calculatedstreetcred;
+      }
+      if (c.calculatednotoriety != null) {
+        update.notoriety = c.calculatednotoriety;
+      }
+      if (c.calculatedpublicawareness != null) {
+        update.public_awareness = c.calculatedpublicawareness;
+      }
+      if (c.karma != null) {
+        update.karma = c.karma;
+      }
+      if (c.totalkarma != null) {
+        update.total_karma = c.totalkarma;
+      }
+      if (c.technomancer != null && c.technomancer.toUpperCase() === "TRUE") {
+        update.flag_special = "resonance";
+      }
+      if (c.magician != null && c.magician.toUpperCase() === "TRUE") {
+        update.flag_special = "magic";
+      }
+      if (c.totaless != null) {
+        update.essence = c.totaless;
+      }
+      if (c.nuyen != null) {
+        update.primary_nuyen = c.nuyen;
+      }
+    } catch (e) {
+        error += "Error with character info: " + e + ". ";
+    }
+    // update attributes
+    try {
+      let atts = chummerfile.characters.character.attributes[1].attribute;
+      for (let i = 0; i < atts.length; i++) {
+        let att = atts[i];
+        if (att.name.toUpperCase() === "BOD") {
+          update.body_base = att.base;
+          update.body_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "AGI") {
+          update.agility_base = att.base;
+          update.agility_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "REA") {
+          update.reaction_base = att.base;
+          update.reaction_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "STR") {
+          update.strength_base = att.base;
+          update.strength_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "CHA") {
+          update.charisma_base = att.base;
+          update.charisma_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "INT") {
+          update.intuition_base = att.base;
+          update.intuition_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "LOG") {
+          update.logic_base = att.base;
+          update.logic_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "WIL") {
+          update.willpower_base = att.base;
+          update.willpower_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "EDG") {
+          update.edge = att.base;
+        } else if (att.name.toUpperCase() === "MAG") {
+          update.magic_base = att.base;
+          update.magic_modifier = att.total - att.base;
+        } else if (att.name.toUpperCase() === "RES") {
+          update.resonance_base = att.base;
+          update.resonance_modifier = att.total - att.base;
+        }
+      }
+    } catch (e) {
+        error += "Error with attributes: " + e + ". ";
+    }
+    // initiative stuff
+    try {
+      if (c.initbonus != null) {
+        // not sure if this one is correct
+        update.initiative_modifier = c.initbonus;
+        update.astral_mod_modifier = c.initbonus;
+        update.matrix_mod_modifier = c.initbonus;
+      }
+      if (c.initdice != null) {
+        update.initiative_dice_modifier = c.initdice - 1;
+      }
+    } catch (e) {
+        error += "Error with initiative: " + e + ". ";
+    }
+    // skills... ugh
+    try {
+      let skills = c.skills.skill;
+      for (let i = 0; i < skills.length; i++) {
+        let s = skills[i];
+        if (s.rating > 0) {
+          let id = generateRowID();
+
+          let group = "active";
+          if (s.knowledge.toUpperCase() === "TRUE") {
+            group = "knowledge";
+          } else if (s.islanguage != null && s.islanguage.toUpperCase() === "TRUE") {
+            group = "language";
+          }
+
+          update[s.name.toLowerCase().replace(" ", "")] = s.rating;
+          // update["repeating_"+group+"_"+id+"_flag"] = "False";
+          update["repeating_"+group+"_"+id+"_skill"] = s.name;
+          update["repeating_"+group+"_"+id+"_dicepool"] = s.rating;
+          update["repeating_"+group+"_"+id+"_rating"] = s.rating;
+          update["repeating_"+group+"_"+id+"_display_rating"] = s.rating;
+
+          if (s.skillspecializations != null) {
+            let spec = s.skillspecializations.skillspecialization.name;
+            update["repeating_"+group+"_"+id+"_specialization"] = spec;
+            update["repeating_"+group+"_"+id+"_display_specialization"] = "("+spec+")";
+
+            let specbonus = "0";
+            // if this is a standard hummer output
+            if (s.specbonus != null) {
+              specbonus = s.specbonus;
+            } else if (!s.name.toLowerCase().includes("exotic")) {
+              // the HeroLab chummer export does not provide specbonus, so a little hacky workaround
+              specbonus = "2"; // this should always be the case if not using an exotic weapon
+            }
+
+            if (parseInt(specbonus) > 0) {
+              let total = parseInt(s.rating) + parseInt(specbonus);
+              update["repeating_"+group+"_"+id+"_display_rating"] = s.rating+" ("+total+")";
+            }
+            update["repeating_"+group+"_"+id+"_rating_modifier"] = specbonus;
+          }
+
+          let att = s.attribute;
+          let skatt = "";
+          let limit = "-";
+          if (att.toUpperCase() === "BOD") {
+            skatt = "Body";
+            limit = "Physical Limit";
+          } else if (att.toUpperCase() === "AGI") {
+            skatt = "Agility";
+            limit = "Physical Limit";
+          } else if (att.toUpperCase() === "REA") {
+            skatt = "Reaction";
+            limit = "Physical Limit";
+          } else if (att.toUpperCase() === "STR") {
+            skatt = "Strength";
+            limit = "Physical Limit";
+          } else if (att.toUpperCase() === "CHA") {
+            skatt = "Charisma";
+            limit = "Social Limit";
+          } else if (att.toUpperCase() === "INT") {
+            skatt = "Intuition";
+            limit = "Mental Limit";
+          } else if (att.toUpperCase() === "LOG") {
+            skatt = "Logic";
+            limit = "Mental Limit";
+          } else if (att.toUpperCase() === "WIL") {
+            skatt = "Willpower";
+            limit = "Mental Limit";
+          } else if (att.toUpperCase() === "MAG") {
+            skatt = "Magic";
+          } else if (att.toUpperCase() === "RES") {
+            skatt = "Resonance";
+          }
+
+          let vskatt = "@{"+skatt.toLowerCase()+"}";
+          update["repeating_"+group+"_"+id+"_attribute"] = vskatt;
+          update["repeating_"+group+"_"+id+"_display_attribute"] = skatt+" "+vskatt;
+          let vlimit = "@{"+limit.toLowerCase().replace(" ", "_")+"}";
+          update["repeating_"+group+"_"+id+"_limit"] = vlimit;
+          update["repeating_"+group+"_"+id+"_display_limit"] = limit+" "+vlimit;
+        }
+      }
+    } catch (e) {
+        error += "Error with skills: " + e + ". ";
+    }
+    // qualities
+    try {
+      let qualities = Array.isArray(c.qualities.quality) ? c.qualities.quality : [ c.qualities.quality ];
+      for (let i = 0; i < qualities.length; i++) {
+        let q = qualities[i];
+        let id = generateRowID();
+
+        update["repeating_quality_"+id+"_quality"] = q.name;
+        update["repeating_quality_"+id+"_type"] = q.qualitytype.substr(0,1);
+      }
+    } catch (e) {
+        error += "Error with qualities: " + e + ". ";
+    }
+    // martial arts
+    try {
+      if (c.martialarts != null) { // HeroLab doesn't output martial arts 
+        let martialarts = Array.isArray(c.martialarts.martialart) ? c.martialarts.martialart : [ c.martialarts.martialart ];
+        for (let i = 0; i < martialarts.length; i++) {
+          let m = martialarts[i];
+          // martialarttechnique can be a list OR an object.................fml
+          if (Array.isArray(m.martialarttechniques.martialarttechnique)) {
+            for (let j = 0; j < m.martialarttechniques.martialarttechnique.length; j++) {
+              let id = generateRowID();
+              let t = m.martialarttechniques.martialarttechnique[j];
+
+              update["repeating_martial_"+id+"_technique"] = t.name;
+              update["repeating_martial_"+id+"_style"] = m.name;
+            }
+          } else {
+            let id = generateRowID();
+            let t = m.martialarttechniques.martialarttechnique;
+
+            update["repeating_martial_"+id+"_technique"] = t.name;
+            update["repeating_martial_"+id+"_style"] = m.name;
+          }
+        }
+      }
+    } catch (e) {
+        error += "Error with martial arts: " + e + ". ";
+    }
+    // weapons
+    try {
+      if (c.weapons != null && c.weapons.weapon != null) {
+        // let weapons = Array.isArray(c.weapons.weapon) ? c.weapons.weapon : [ c.weapons.weapon ];
+        let weapons = Array.isArray(c.weapons.weapon) ? c.weapons.weapon : [ c.weapons.weapon ];
+        for (let i = 0; i < weapons.length; i++) {
+          let id = generateRowID();
+          let w = weapons[i];
+          let rw = "repeating_weapon_";
+          let rr = "repeating_range_";
+          let rm = "repeating_melee_";
+
+          if (w.type.toUpperCase() === "MELEE") {
+            update[rm+id+"_weapon"] = w.name;
+            update[rm+id+"_reach"] = w.reach;
+            update[rm+id+"_damage"] = w.damage_english;
+            update[rm+id+"_acc"] = w.accuracy;
+            update[rm+id+"_ap"] = w.ap;
+            update[rm+id+"_dicepool"] = getValInParen(w.dicepool);
+            let skill = "";
+            if (w.category.toUpperCase() === "EXOTIC MELEE WEAPONS") {
+              skill = "0";
+            } else {
+              skill = "@{" + w.skill.toLowerCase().replace(" ", "") + "}";
+            }
+            update[rm+id+"_skill"] = skill;
+          } else if (w.type.toUpperCase() === "RANGED") {
+            update[rr+id+"_weapon"] = w.name;
+            update[rr+id+"_damage"] = w.damage_english;
+            update[rr+id+"_ap"] = w.ap.replace("+", "");
+            update[rr+id+"_recoil"] = getValInParen(w.rc);
+            update[rr+id+"_dicepool"] = getValInParen(w.dicepool);
+            update[rr+id+"_acc"] = getValInParen(w.accuracy);
+
+            let skill = "";
+            if (w.category.toUpperCase() === "EXOTIC RANGED WEAPONS") {
+              skill = "0";
+            } else {
+              skill = "@{" + w.skill.toLowerCase().replace(" ", "") + "}";
+            }
+            update[rr+id+"_skill"] = skill;
+
+            if (w.mode != null) { // HeroLab export doesn't have mode
+              update[rr+id+"_mode"] = w.mode;
+            }
+
+            if (w.clips != null && w.clips.clip != null) { // HeroLab export doesn't have clips
+              let clips = Array.isArray(w.clips.clip) ? w.clips.clip : [ w.clips.clip ];
+              update[rr+id+"_ammo"] = clips[0].count;
+            }
+
+            if (w.ranges != null
+              && w.ranges.short != null
+              && w.ranges.medium != null
+              && w.ranges.long != null
+              && w.ranges.extreme != null) { // HeroLab export doesn't have ranges
+              let range = w.ranges.short.split("-")[1] + "/"
+                          + w.ranges.medium.split("-")[1] + "/"
+                          + w.ranges.long.split("-")[1] + "/"
+                          + w.ranges.extreme.split("-")[1] + "/";
+              update[rr+id+"_range"] = range;
+            }
+          }
+
+          // add weapon to NPC page now
+          id = generateRowID();
+          let isRanged = w.type.toUpperCase() === "RANGED";
+          update[rw+id+"_weapon_range"] = ( isRanged ? 0 : 1);
+          update[rw+id+"_weapon_name"] = w.name;
+          update[rw+id+"_weapon_type"] = w.category;
+          update[rw+id+"_weapon_dv"] = w.damage_english;
+          update[rw+id+"_weapon_ap"] = w.ap;
+
+          update[rw+id+"_weapon_dice"] = getValInParen(w.dicepool);
+          update[rw+id+"_weapon_acc"] = getValInParen(w.accuracy);
+
+          if (isRanged) {
+            update[rw+id+"_weapon_rc"] = w.rc;
+            if (w.mode != null) { // HeroLab export doesn't have mode
+              update[rw+id+"_weapon_mode"] = w.mode;
+            }
+            if (w.clips != null && w.clips.clip != null) { // HeroLab export doesn't have clips
+              let clips = Array.isArray(w.clips.clip) ? w.clips.clip : [ w.clips.clip ];
+              update[rw+id+"_weapon_ammo"] = clips[0].count;
+            }
+          } else { // is melee
+            update[rw+id+"_weapon_reach"] = w.reach;
+          }
+        }
+      }
+    } catch (e) {
+        error += "Error with weapons: " + e + ". ";
+    }
+    // armor
+    try {
+      let armors = Array.isArray(c.armors.armor) ? c.armors.armor : [ c.armors.armor ];
+      let equippedArmorName = "";
+      let equippedArmorBase = 0;
+      let equippedArmorMod = 0;
+      let equippedArmorRad = 0;
+      let equippedArmorFire = 0;
+      let equippedArmorCold = 0;
+      let equippedArmorElec = 0;
+      let equippedArmorAcid = 0;
+      let equippedArmorDesc = "";
+      let ra = "repeating_armor_";
+      for (let i = 0; i < armors.length; i++) {
+        let a = armors[i];
+
+        let name = "";
+        let base = 0;
+        let mod = 0;
+        let rad = 0;
+        let fire = 0;
+        let cold = 0;
+        let elec = 0;
+        let acid = 0;
+        let desc = "";
+
+        let isBonus = a.armor.includes("+");
+        if (isBonus) {
+          mod += parseInt(a.armor.replace("+", ""));
+          // add desc to end
+          desc += a.name + ": " + a.armor + "|";
+        } else {
+          base = parseInt(a.armor);
+          name = a.name;
+        }
+        if (a.armormods != null && a.armormods.armormod != null) {
+          let modDesc = [];
+          for (let j = 0; j < a.armormods.armormod.length; j++) {
+            let mod = a.armormods.armormod[j];
+            if (mod.name.toLowerCase().includes("fire resistance")) {
+              fire += parseInt(mod.rating);
+            } else if (mod.name.toLowerCase().includes("nonconductivity")) {
+              elec += parseInt(mod.rating);
+            } else if (mod.name.toLowerCase().includes("insulation")) {
+              cold += parseInt(mod.rating);
+            } else if (mod.name.toLowerCase().includes("radiation shielding")) {
+              rad += parseInt(mod.rating);
+            }
+
+            if (mod.rating != "") {
+              modDesc.push(mod.name + " R" + mod.rating);
+            } else {
+              modDesc.push(mod.name);
+            }
+          }
+
+          if (modDesc.length > 0) {
+            if (isBonus) {
+              // add desc to end
+              desc += a.name + " has: " + modDesc.join(",") + "|";
+            } else {
+              // add desc to beginning
+              desc = modDesc.join(",") + "|" + desc;
+            }
+          }
+        }
+        if (a.equipped.toUpperCase() === "TRUE") {
+          if (isBonus) {
+            equippedArmorMod += mod;
+            equippedArmorDesc += desc;
+          } else {
+            equippedArmorBase = base;
+            equippedArmorName = name;
+            equippedArmorDesc = desc + equippedArmorDesc;
+          }
+          equippedArmorFire += fire;
+          equippedArmorCold += cold;
+          equippedArmorAcid += acid;
+          equippedArmorRad += rad;
+          equippedArmorElec += elec;
+
+        } else { // if not equipped, add it as its own armor
+          let id = generateRowID();
+          update[ra+id+"_name"] = a.name; // could be a bouns armor, grab name directly from armor
+          update[ra+id+"_rating"] = base;
+          update[ra+id+"_acid_modifier"] = acid;
+          update[ra+id+"_cold_modifier"] = cold;
+          update[ra+id+"_electrical_modifier"] = elec;
+          update[ra+id+"_fire_modifier"] = fire;
+          update[ra+id+"_radiation_modifier"] = rad;
+          update[ra+id+"_dicepool_modifier"] = mod;
+          update[ra+id+"_notes"] = desc;
+        }
+      }
+      // add equipped armor to update;
+      let id = generateRowID();
+      update[ra+id+"_name"] = equippedArmorName;
+      update[ra+id+"_rating"] = equippedArmorBase;
+      update[ra+id+"_acid_modifier"] = equippedArmorAcid;
+      update[ra+id+"_cold_modifier"] = equippedArmorCold;
+      update[ra+id+"_electrical_modifier"] = equippedArmorElec;
+      update[ra+id+"_fire_modifier"] = equippedArmorFire;
+      update[ra+id+"_radiation_modifier"] = equippedArmorRad;
+      update[ra+id+"_dicepool_modifier"] = equippedArmorMod;
+      update[ra+id+"_notes"] = equippedArmorDesc;
+
+    } catch (e) {
+      error += "Error with armor: " + e + ". ";
+    }
+    // augs
+    try {
+      if (c.cyberwares != null && c.cyberwares.cyberware != null) {
+        let cyberwares = Array.isArray(c.cyberwares.cyberware) ? c.cyberwares.cyberware : [ c.cyberwares.cyberware ];
+        let ra = "repeating_augementations_";
+        for (let i = 0; i < cyberwares.length; i++) {
+          let cy = cyberwares[i];
+          let id = generateRowID();
+          update[ra+id+"_augmentation"] =cy.name;
+          update[ra+id+"_rating"] = cy.rating;
+          update[ra+id+"_essence"] = cy.ess;
+          update[ra+id+"_notes"] = "Grade: " + cy.grade;
+        }
+      }
+    } catch (e) {
+      error += "Error with augmentations: " + e + ". ";
+    }
+    // gear
+    try {
+      if (c.gears != null && c.gears.gear != null) {
+        let gears = Array.isArray(c.gears.gear) ? c.gears.gear : [ c.gears.gear ];
+        let ri = "repeating_items_";
+        let licenses = [];
+        for (let i = 0; i < gears.length; i++) {
+          let g = gears[i];
+          if (g.name.toLowerCase() === "fake license") {
+            // add licenses to lifestyle
+            if (g.extra != null) {
+              licenses.push(g.extra.replace(" License", ""));
+            }
+          } else if (g.name.toLowerCase() === "fake sin") {
+            if (g.children != null && g.children.gear != null) {
+              g.children.gear.forEach(child => {
+                if (child.name != null 
+                    && child.name.toLowerCase() === "fake license"
+                    && child.extra != null) {
+                  licenses.push(child.extra.replace(" License", ""));
+                }
+              });
+            }
+            // add fake sin TODO
+          } else {
+            let id = generateRowID();
+            update[ri+id+"_item"] = g.name;
+            if (g.rating != null) {
+              update[ri+id+"_rating"] = g.rating;
+            }
+            update[ri+id+"_quantity"] = g.qty;
+          }
+        }
+        update.primary_licenses = licenses.join(", ");
+      }
+    } catch (e) {
+      error += "Error with gear: " + e + ". ";
+    }
+    // spells
+    try {
+      if (c.spells != null && c.spells.spell != null) {
+        let spells = Array.isArray(c.spells.spell) ? c.spells.spell : [ c.spells.spell ];
+        for (let i = 0; i < spells.length; i++) {
+          let s = spells[i];
+          ["repeating_spell_", "repeating_NPCspell_", "repeating_preps_"].forEach(rs => {
+            // don't continue if adding to spell and is alchemy or adding to alchemy and is spell
+            if ((s.alchemy.toUpperCase() === "TRUE" && rs != "repeating_spell_")
+                || (s.alchemy.toUpperCase() === "FALSE" && rs != "repeating_preps_")) {
+              let id = generateRowID();
+
+              update[rs+id+"_category"] = s.category;
+              update[rs+id+"_dice"] = getValInParen(s.dicepool);
+              update[rs+id+"_name"] = s.name;
+              update[rs+id+"_type"] = s.type;
+              update[rs+id+"_range"] = s.range;
+              update[rs+id+"_drain"] = s.dv.replace("F", "");
+              if (s.descriptors != null) {
+                update[rs+id+"_notes"] = s.descriptors;
+                update[rs+id+"_note"] = s.descriptors;
+              }
+
+              if (s.category.toUpperCase() === "COMBAT") {
+                let combattype = "";
+                if (s.descriptors.toUpperCase().includes("DIRECT")) {
+                  combattype = "Direct, Force ";
+                } else if (s.descriptors.toUpperCase().includes("INDIRECT")) {
+                  combattype = "Indirect, Force ?{Force|}, AP -";
+                }
+                update[rs+id+"_combat_type"] = combattype;
+              }
+
+              let duration = "";
+              if (s.duration.toUpperCase() === "S") {
+                duration = "Sustained";
+              } else if (s.duration.toUpperCase() === "I") {
+                duration = "Instant";
+              } else if (s.duration.toUpperCase() === "P") {
+                duration = "Permanent";
+              } else {
+                duration = "Special";
+              }
+              update[rs+id+"_duration"] = duration;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      error += "Error with spells: " + e + ". ";
+    }
+    // powers
+    try {
+      if (c.powers != null && c.powers.power != null) {
+        let powers = Array.isArray(c.powers.power) ? c.powers.power : [ c.powers.power ];
+        let rp = "repeating_powers_";
+        for (let i = 0; i < powers.length; i++) {
+          let p = powers[i];
+          let id = generateRowID();
+
+          update[rp+id+"_name"] = (p.fullname != null ? p.fullname : p.name);
+          update[rp+id+"_rating"] = p.rating;
+          let desc = "";
+          if (p.totalpoints != null) {
+            desc += "Total Points: " + p.totalpoints + ". ";
+          }
+          if (p.source != null && p.page != null) {
+            desc += p.source + " " + p.page;
+          }
+          update[rp+id+"_notes"] = desc;
+        }
+      }
+    } catch (e) {
+      error += "Error with powers: " + e + ". ";
+    }
+    // matrix
+    try {
+      // TODO
+    } catch (e) {
+      error += "Error with matrix: " + e + ". ";
+    }
+    // complex forms
+    try {
+      // TODO
+    } catch (e) {
+      error += "Error with matrix: " + e + ". ";
+    }
+    // lifestyle
+    try {
+      if (c.lifestyles != null && c.lifestyles.lifestyle != null) {
+        let lifestyles = Array.isArray(c.lifestyles.lifestyle) ? c.lifestyles.lifestyle : [ c.lifestyles.lifestyle ];
+        let l = lifestyles[0];
+        update.primary_lifestyle = l.name;
+      }
+    } catch (e) {
+      error += "Error with lifestyles: " + e + ". ";
+    }
+    // contacts
+    try {
+      if (c.contacts != null && c.contacts.contact != null) {
+        let contacts = Array.isArray(c.contacts.contact) ? c.contacts.contact : [ c.contacts.contact ];
+        let rc = "repeating_contacts_";
+        for (let i = 0; i < contacts.length; i++) {
+          let co = contacts[i];
+          let id = generateRowID();
+
+          update[rc+id+"_name"] = co.name;
+          update[rc+id+"_loyalty"] = co.loyalty;
+          update[rc+id+"_connection"] = co.connection;
+
+          let desc = "";
+          if (co.role != null) {
+            desc += "Role: " + co.role + ". ";
+          }
+          if (co.metatype != null) {
+            desc += "Meta: " + co.metatype + ". ";
+          }
+          if (co.sex != null) {
+            desc += "Sex: " + co.sex + ". ";
+          }
+          if (co.age != null) {
+            desc += "Age: " + co.age + ". ";
+          }
+          update[rc+id+"_notes"] = desc;
+        }
+      }
+    } catch (e) {
+      error += "Error with contacts: " + e + ". ";
+    }
+    // vehicles
+    try {
+      if (c.vehicles != null && c.vehicles.vehicle != null) {
+
+        function getSplitNum(value) {
+          return value.split("/")[0];
+        }
+
+        let rv = "repeating_vehicle_";
+        let vehicles = Array.isArray(c.vehicles.vehicle) ? c.vehicles.vehicle : [ c.vehicles.vehicle ];
+        vehicles.forEach((v) => {
+          let id = generateRowID();
+
+          update[rv+id+"_name"] = v.name;
+          update[rv+id+"_handling_base"] = getSplitNum(v.handling);
+          update[rv+id+"_acceleration_base"] = getSplitNum(v.accel);
+          update[rv+id+"_speed_base"] = getSplitNum(v.speed);
+          update[rv+id+"_body_base"] = getSplitNum(v.body);
+          update[rv+id+"_armor_base"] = getSplitNum(v.armor);
+          update[rv+id+"_sensor_base"] = getSplitNum(v.sensor);
+          update[rv+id+"_pilot_base"] = v.pilot;
+        });
+      }
+    } catch (e) {
+      error += "Error with vehicles: " + e + ". ";
+    }
+  }
+  if (error != "") {
+    update.chummer_text = error;
+  } else {
+    update.chummer_text = "Compelete! Be sure to review everything and add matrix.\nBe sure to set primary weapons and armor, set specializations for spells/weapons/etc.\nSet modifiers applied from Adept powers/cyberware."
+  }
+  setAttrs(update);
+};
+
+function getAttributeAndLimitForSkill(skill) {
+  let attAndLimit = {};
+  if (["Archery", "Automatics", "Blades", "Clubs", "Escape Artist", "Exotic Melee Weapon", "Exotic Ranged Weapon", "Gunnery", "Gymnastics", "Heavy Weapons", "Locksmith", "Longarms", "Palming", "Pistols", "Sneaking", "Throwing Weapons", "Unarmed Combat"].includes(skill)) {
+    attAndLimit.att = "Agility";
+    attAndLimit.vatt = "@{agility}";
+    attAndLimit.limit = "Physical Limit";
+    attAndLimit.vlimit = "@{physical_limit}"
+  } else if (["Diving", "Free Fall"].includes(skill)) {
+    attAndLimit.att = "Body";
+    attAndLimit.vatt = "@{body}";
+    attAndLimit.limit = "Physical Limit";
+    attAndLimit.vlimit = "@{physical_limit}"
+  } else if (["Pilot Aerospace", "Pilot Aircraft", "Pilot Exotic Vehicle", "Pilot Ground Craft", "Pilot Walker", "Pilot Watercraft"].includes(skill)) {
+    attAndLimit.att = "Reaction";
+    attAndLimit.vatt = "@{reaction}";
+    attAndLimit.limit = "Physical Limit";
+    attAndLimit.vlimit = "@{physical_limit}"
+  } else if (["Running", "Swimming"].includes(skill)) {
+    attAndLimit.att = "Strength";
+    attAndLimit.vatt = "@{strength}";
+    attAndLimit.limit = "Physical Limit";
+    attAndLimit.vlimit = "@{physical_limit}"
+  } else if (["Animal Handling", "Con", "Etiquette", "Impersonation", "Instruction", "Intimidation", "Leadership", "Negotiation", "Performance"].includes(skill)) {
+    attAndLimit.att = "Charisma";
+    attAndLimit.vatt = "@{charisma}";
+    attAndLimit.limit = "Social Limit";
+    attAndLimit.vlimit = "@{social_limit}"
+  } else if (["Artisan", "Assensing", "Disguise", "Interests Knowledge", "Language", "Navigation", "Perception", "Street Knowledge", "Tracking"].includes(skill)) {
+    attAndLimit.att = "Intuition";
+    attAndLimit.vatt = "@{intuition}";
+    attAndLimit.limit = "Mental Limit";
+    attAndLimit.vlimit = "@{mental_limit}"
+  } else if (["Academic Knowledge", "Aeronautics Mechanic", "Arcana", "Armorer", "Automotive Mechanic", "Biotechnology", "Chemistry", "Computer", "Cybertechnology", "Cybercombat", "Demolitions", "Electronic Warfare", "First Aid", "Forgery", "Industrial Mechanic", "Hacking", "Hardware", "Medicine", "Nautical Mechanic", "Professional Knowledge", "Software"].includes(skill)) {
+    attAndLimit.att = "Logic";
+    attAndLimit.vatt = "@{logic}";
+    attAndLimit.limit = "Mental Limit";
+    attAndLimit.vlimit = "@{mental_limit}"
+  } else if (["Astral Combat", "Survival"].includes(skill)) {
+    attAndLimit.att = "Willpower";
+    attAndLimit.vatt = "@{willpower}";
+    attAndLimit.limit = "Mental Limit";
+    attAndLimit.vlimit = "@{mental_limit}"
+  } else if (["Alchemy", "Artificing", "Banishing", "Binding", "Counterspelling", "Disenchanting", "Ritual Spellcasting", "Spellcasting", "Summoning"].includes(skill)) {
+    attAndLimit.att = "Magic";
+    attAndLimit.vatt = "@{magic}";
+    attAndLimit.limit = "";
+    attAndLimit.vlimit = ""
+  } else if (["Compiling", "Decompiling", "Registering"].includes(skill)) {
+    attAndLimit.att = "Resonance";
+    attAndLimit.vatt = "@{resonance}";
+    attAndLimit.limit = "";
+    attAndLimit.vlimit = ""
+  } else {
+    attAndLimit.att = "";
+    attAndLimit.vatt = "@{}";
+    attAndLimit.limit = "";
+    attAndLimit.vlimit = "@{}";
+  }
+  return attAndLimit;
+};
+
+function getSkillForWeaponGroup(group, format=true) {
+  let ret = "";
+  if (["Taser", "Hold-Out Pistols", "Light Pistols", "Heavy Pistols", "Pistols"].includes(group)) {
+    ret = "Pistols";
+  } else if (["Machine Pistols", "Submachine Guns", "Assault Rifles", "Carbines"].includes(group)) {
+    ret = "Automatics";
+  } else if (["Shotguns", "Sniper Rifles", "Sporting Rifles"].includes(group)) {
+    ret = "Longarms";
+  } else if (["Heavy Machinguns", "Medium Machineguns", "Light Machineguns", "Missle Launchers", "Grenade Launchers", "Assault Cannons"].includes(group)) {
+    ret = "Heavy Weapons";
+  } else if (["Bows", "Crossbows", "Harpoon Guns", "Slingshots"].includes(group)) {
+    ret = "Archery";
+  } else if (["Blades"].includes(group)) {
+    ret = "Blades";
+  } else if (["Clubs"].includes(group)) {
+    ret = "Clubs";
+  } else if (["Throwing Weapons"].includes(group)) {
+    ret = "throwing Weapons";
+  } else if (["Unarmed"].includes(group)) {
+    ret = "Unarmed Combat";
+  } else {
+    if (format) {
+      return 0;
+    } else {
+      return "Exotic Weapon";
+    }
+  }
+  if (format) {
+    return "@{"+ret.toLowerCase().replace(" ", "")+"}"
+  } else {
+    return ret;
+  }
+}
+
+function getDpAndAccForWeapon(text) {
+  let ret = {};
+  let split = text.split("dicepool ");
+  ret.dp = split[0];
+  ret.acc = split[1].replace("[", "").replace("]", "");
+  return ret;
+}
+
+function importHeroLab(hlfile) {
+  let update = {};
+  let error = "";
+  if (hlfile.document != null
+    && hlfile.document.public != null
+    && hlfile.document.public.character != null) {
+    let c = hlfile.document.public.character;
+
+    // character info
+    try {
+      if (c.race != null) {
+        update.metatype = c.race._name;
+      }
+      if (c._name != null) {
+        update.character_name = c._name;
+      }
+      if (c._playername != null) {
+        update.player_name = c._playername;
+      }
+      if (c.personal != null) {
+        let p = c.personal;
+        update.height = p.charheight._text;
+        update.weight = p.charweight._text;
+        update.sex = p._gender;
+        update.age = p._age;
+      }
+      if (c.reputations != null) {
+        let reputations = Array.isArray(c.reputations.reputation) ? c.reputations.reputation : [ c.reputations.reputation ];
+        reputations.forEach((r) => {
+          if (r._name.toUpperCase() === "STREET CRED") {
+            update.street_cred = r._value;
+          } else if (r._name.toUpperCase() === "NOTORIETY") {
+            update.notoriety = r._value;
+          } else if (r._name.toUpperCase() === "PUBLIC AWARENESS") {
+            update.publicawareness = r._value;
+          }
+        });
+      }
+      if (c.karma != null) {
+        update.total_karma = c.karma._total;
+        update.karma = c.karma._left;
+      }
+    } catch (e) {
+      error += "Error with character info " + e + ".";
+    }
+    // attributes
+    try {
+      if (c.attributes != null && c.attributes.attribute != null) {
+        let attributes = Array.isArray(c.attributes.attribute) ? c.attributes.attribute : [ c.attributes.attribute ];
+        attributes.forEach((att) => {
+          if (att._name.toUpperCase() === "BODY") {
+            update.body_base = att._base;
+            update.body_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "AGILITY") {
+            update.agility_base = att._base;
+            update.agility_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "REACTION") {
+            update.reaction_base = att._base;
+            update.reaction_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "STRENGTH") {
+            update.strength_base = att._base;
+            update.strength_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "CHARISMA") {
+            update.charisma_base = att._base;
+            update.charisma_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "INTUITION") {
+            update.intuition_base = att._base;
+            update.intuition_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "LOGIC") {
+            update.logic_base = att._base;
+            update.logic_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "WILLPOWER") {
+            update.willpower_base = att._base;
+            update.willpower_modifier = att._modified - att._base;
+          } else if (att._name.toUpperCase() === "EDGE") {
+            update.edge = att._base;
+          } else if (att._name.toUpperCase() === "MAGIC") {
+            update.magic_base = att._base;
+            update.magic_modifier = att._modified - att._base;
+            update.flag_special = "magic";
+          } else if (att._name.toUpperCase() === "RESONANCE") {
+            update.resonance_base = att._base;
+            update.resonance_modifier = att._modified - att._base;
+            update.flag_special = "resonance";
+          } else if (att._name.toUpperCase() === "ESSENCE") {
+            update.essence = att._modified;
+          }
+        });
+      }
+    } catch (e) {
+      error += "Error with attributes " + e + ".";
+    }
+    // skills
+    try {
+      if (c.skills != null) {
+        if (c.skills.active != null && c.skills.active.skill != null) {
+          let skills = Array.isArray(c.skills.active.skill) ? c.skills.active.skill : [ c.skills.active.skill ];
+          let ra = "repeating_active_";
+          skills.forEach((s) => {
+            let id = generateRowID();
+
+            update[s._name.toLowerCase().replace(" ", "")] = s._modified;
+            update[ra+id+"_skill"] = s._name;
+            update[ra+id+"_dicepool"] = s._base;
+            update[ra+id+"_rating"] = s._base;
+            update[ra+id+"_display_rating"] = s._base;
+            update[ra+id+"_notes"] = s.description;
+            let attAndLimit = getAttributeAndLimitForSkill(s._name);
+            update[ra+id+"_attribute"] = attAndLimit.vatt;
+            update[ra+id+"_display_attribute"] = attAndLimit.att+" "+attAndLimit.vatt;
+            update[ra+id+"_limit"] = attAndLimit.vlimit;
+            update[ra+id+"_display_limit"] = attAndLimit.att+" "+attAndLimit.vlimit;
+            let mod = parseInt(s._modified) - parseInt(s._base);
+            if (mod > 0) {
+              update[ra+id+"_rating_modifier"] = mod;
+              let total = parseInt(s._base) + mod;
+              update[ra+id+"_display_rating"] = s._base+" ("+total+")";
+            }
+
+            if (s.specialization != null) {
+              let specList = [];
+              let specs = Array.isArray(s.specialization) ? s.specialization : [ s.specialization ];
+              specs.forEach((spec) => {
+                specList.push(spec._bonustext.replace(" +2", ""));
+              });
+              update[ra+id+"_specialization"] = specList.join("|");
+              update[ra+id+"_display_specialization"] = "("+specList.join("|")+")";
+            }
+          });
+        }
+        if (c.skills.knowledge != null && c.skills.knowledge.skill != null) {
+          let skills = Array.isArray(c.skills.knowledge.skill) ? c.skills.knowledge.skill : [ c.skills.knowledge.skill ];
+          let rk = "repeating_knowledge_";
+          skills.forEach((s) => {
+            let id = generateRowID();
+
+            update[s._name.toLowerCase().replace(" ", "")] = s._modified;
+            update[rk+id+"_skill"] = s._name;
+            update[rk+id+"_dicepool"] = s._base;
+            update[rk+id+"_rating"] = s._base;
+            update[rk+id+"_display_rating"] = s._base;
+            update[rk+id+"_notes"] = s.description;
+            let mod = parseInt(s._modified) - parseInt(s._base);
+            if (mod > 0) {
+              update[rk+id+"_rating_modifier"] = mod;
+              let total = parseInt(s._base) + mod;
+              update[rk+id+"_display_rating"] = s._base+" ("+total+")";
+            }
+
+            if (s.specialization != null) {
+              let specList = [];
+              let specs = Array.isArray(s.specialization) ? s.specialization : [ s.specialization ];
+              specs.forEach((spec) => {
+                specList.push(spec._bonustext.replace(" +2", ""));
+              });
+              update[rk+id+"_specialization"] = specList.join("|");
+              update[rk+id+"_display_specialization"] = "("+specList.join("|")+")";
+            }
+          });
+        }
+        if (c.skills.language != null && c.skills.language.skill != null) {
+          let skills = Array.isArray(c.skills.language.skill) ? c.skills.language.skill : [ c.skills.language.skill ];
+          let rl = "repeating_language_";
+          skills.forEach((s) => {
+            let id = generateRowID();
+
+            update[s._name.toLowerCase().replace(" ", "")] = s._modified;
+            update[rl+id+"_skill"] = s._name;
+            update[rl+id+"_dicepool"] = s._base;
+            update[rl+id+"_rating"] = s._base;
+            update[rl+id+"_display_rating"] = s._base;
+            update[rl+id+"_notes"] = s.description;
+            let mod = parseInt(s._modified) - parseInt(s._base);
+            if (mod > 0) {
+              update[ra+id+"_rating_modifier"] = mod;
+              let total = parseInt(s._base) + mod;
+              update[ra+id+"_display_rating"] = s._base+" ("+total+")";
+            }
+
+            if (s.specialization != null) {
+              let specList = [];
+              let specs = Array.isArray(s.specialization) ? s.specialization : [ s.specialization ];
+              specs.forEach((spec) => {
+                specList.push(spec._bonustext.replace(" +2", ""));
+              });
+              update[rl+id+"_specialization"] = specList.join("|");
+              update[rl+id+"_display_specialization"] = "("+specList.join("|")+")";
+            }
+          });
+        }
+      }
+    } catch (e) {
+      error += "Error with skills " + e + ".";
+    }
+    // qualities
+    try {
+      if (c.qualities != null) {
+        let rq = "repeating_quality_";
+        if (c.qualities.positive != null && c.qualities.positive.quality != null) {
+          let qualities = Array.isArray(c.qualities.positive.quality) ? c.qualities.positive.quality : [ c.qualities.positive.quality ];
+          qualities.forEach((q) => {
+            let id = generateRowID();
+
+            update[rq+id+"_quality"] = q._name;
+            update[rq+id+"_type"] = "P";
+            update[rq+id+"_notes"] = q.description;
+          });
+        }
+        if (c.qualities.negative != null && c.qualities.negative.quality != null) {
+          let qualities = Array.isArray(c.qualities.negative.quality) ? c.qualities.negative.quality : [ c.qualities.negative.quality ];
+          qualities.forEach((q) => {
+            let id = generateRowID();
+
+            update[rq+id+"_quality"] = q._name;
+            update[rq+id+"_type"] = "N";
+            update[rq+id+"_notes"] = q.description;
+          });
+        }
+      }
+    } catch (e) {
+      error += "Error with qualities " + e + ".";
+    }
+    // no Martial Arts from hero lab
+    // gear
+    if (c.gear != null) {
+      // weapons
+      try {
+        if (c.gear.weapons != null && c.gear.weapons.item != null) {
+          let weapons = Array.isArray(c.gear.weapons.item) ? c.gear.weapons.item : [ c.gear.weapons.item ];
+          let rw = "repeating_weapon_";
+          let rr = "repeating_range_";
+          let rm = "repeating_melee_";
+          weapons.forEach((w) => {
+            if (w.weaponinfo != null && w.weaponinfo._isammunition === "0") {
+              let id = generateRowID();
+              let isRanged = w.weaponinfo.ranges != null;
+              let skill = getSkillForWeaponGroup(w.weaponinfo._grouptext);
+              let dpAndAcc = getDpAndAccForWeapon(w.weaponinfo._dicepool);
+              let modsList = [];
+              if (w.modifications != null && w.modifications.item != null) {
+                let mods = Array.isArray(w.modifications.item) ? w.modifications.item : [ w.modifications.item ];
+                mods.forEach((mod) => {
+                  modsList.push(mod._name);
+                });
+              }
+              if (isRanged) {
+                update[rr+id+"_weapon"] = w._name;
+                update[rr+id+"_damage"] = w.weaponinfo._damagetext;
+                update[rr+id+"_ap"] = w.weaponinfo._ap;
+                update[rr+id+"_skill"] = skill;
+                update[rr+id+"_dicepool"] = dpAndAcc.dp;
+                update[rr+id+"_acc"] = dpAndAcc.acc;
+                update[rr+id+"_recoil"] = w.weaponinfo._recoilcomp;
+                update[rr+id+"_mode"] = w.weaponinfo._modestext;
+                update[rr+id+"_range"] = w.weaponinfo.ranges._text;
+                update[rr+id+"_notes"] = modsList.join("|");
+              } else {
+                update[rm+id+"_weapon"] = w._name;
+                update[rm+id+"_damage"] = w.weaponinfo._damagetext;
+                update[rm+id+"_ap"] = w.weaponinfo._ap;
+                update[rm+id+"_skill"] = skill;
+                update[rm+id+"_dicepool"] = dpAndAcc.dp;
+                update[rm+id+"_acc"] = dpAndAcc.acc;
+                update[rm+id+"_reach"] = (w.weaponinfo._reach === "" ? "0" : w.weaponinfo._reach);
+                update[rm+id+"_notes"] = modsList.join("|");
+              }
+              // add weapon to npc page
+              id = generateRowID();
+              update[rw+id+"_weapon_range"] = (isRanged ? 0 : 1);
+              update[rw+id+"_weapon_name"] = w._name;
+              update[rw+id+"_weapon_type"] = getSkillForWeaponGroup(w.weaponinfo._grouptext, false);
+              update[rw+id+"_weapon_dv"] = w.weaponinfo._damagetext;
+              update[rw+id+"_weapon_ap"] = w.weaponinfo._ap;
+              update[rw+id+"_weapon_acc"] = dpAndAcc.acc;
+              update[rw+id+"_weapon_dice"] = dpAndAcc.dp;
+              update[rw+id+"_weapon_note"] = modsList.join("|");
+
+              if (isRanged) {
+                update[rw+id+"_weapon_rc"] = w.weaponinfo._recoilcomp;
+                update[rw+id+"_weapon_mode"] = w.weaponinfo._modestext;
+              } else {
+                update[rw+id+"_weapon_reach"] = (w.weaponinfo._reach === "" ? "0" : w.weaponinfo._reach);
+              }
+            }
+          });
+        }
+      } catch (e) {
+        error += "Error with weapons " + e + ".";
+      }
+      // armor
+      try {
+        if (c.gear.armor != null && c.gear.armor.item != null) {
+          let armors = Array.isArray(c.gear.armor.item) ? c.gear.armor.item : [ c.gear.armor.item ];
+          let equippedArmorName = "";
+          let equippedArmorBase = 0;
+          let equippedArmorMod = 0;
+          let equippedArmorRad = 0;
+          let equippedArmorFire = 0;
+          let equippedArmorCold = 0;
+          let equippedArmorElec = 0;
+          let equippedArmorAcid = 0;
+          let equippedArmorDesc = "";
+          let ra = "repeating_armor_";
+          armors.forEach((a) => {
+            let name = "";
+            let base = 0;
+            let mod = 0;
+            let rad = 0;
+            let fire = 0;
+            let cold = 0;
+            let elec = 0;
+            let acid = 0;
+            let desc = "";
+
+            let isBonus = a.armorinfo._rating.includes("+");
+            if (isBonus) {
+              mod += parseInt(a.armorinfo._rating.replace("+", ""));
+              // add desc to end
+              desc += a._name + ": " + a.armorinfo._rating + "|";
+            } else {
+              base = parseInt(a.armorinfo._rating);
+              name = a._name;
+            }
+            if (a.modifications != null && a.modifications.item != null) {
+              let modDesc = [];
+              let mods = Array.isArray(a.modifications.item) ? a.modifications.item : [ a.modifications.item ];
+              mods.forEach((mod) => {
+                if (mod._name.toLowerCase().includes("fire resistance")) {
+                  fire += parseInt(mod._rating);
+                } else if (mod._name.toLowerCase().includes("nonconductivity")) {
+                  elec += parseInt(mod._rating);
+                } else if (mod._name.toLowerCase().includes("insulation")) {
+                  cold += parseInt(mod._rating);
+                } else if (mod._name.toLowerCase().includes("radiation shielding")) {
+                  rad += parseInt(mod._rating);
+                }
+
+                if (mod._rating != null && mod._rating != "") {
+                  modDesc.push(mod._name + " R" + mod._rating);
+                } else {
+                  modDesc.push(mod._name);
+                }
+              });
+
+              if (modDesc.length > 0) {
+                if (isBonus) {
+                  // add desc to end
+                  desc += a._name + " has: " + modDesc.join(",") + "|";
+                } else {
+                  // add desc to beginning
+                  desc = modDesc.join(",") + "|" + desc;
+                }
+              }
+            }
+            if (a.armorinfo._equipped.toUpperCase() === "YES") {
+              if (isBonus) {
+                equippedArmorMod += mod;
+                equippedArmorDesc += desc;
+              } else {
+                equippedArmorBase = base;
+                equippedArmorName = name;
+                equippedArmorDesc = desc + equippedArmorDesc;
+              }
+              equippedArmorFire += fire;
+              equippedArmorCold += cold;
+              equippedArmorAcid += acid;
+              equippedArmorRad += rad;
+              equippedArmorElec += elec;
+
+            } else { // if not equipped, add it as its own armor
+              let id = generateRowID();
+              update[ra+id+"_name"] = a._name; // could be a bouns armor, grab name directly from armor
+              update[ra+id+"_rating"] = base;
+              update[ra+id+"_acid_modifier"] = acid;
+              update[ra+id+"_cold_modifier"] = cold;
+              update[ra+id+"_electrical_modifier"] = elec;
+              update[ra+id+"_fire_modifier"] = fire;
+              update[ra+id+"_radiation_modifier"] = rad;
+              update[ra+id+"_dicepool_modifier"] = mod;
+              update[ra+id+"_notes"] = desc;
+            }
+          });
+          // add equipped armor to update;
+          let id = generateRowID();
+          update[ra+id+"_name"] = equippedArmorName;
+          update[ra+id+"_rating"] = equippedArmorBase;
+          update[ra+id+"_acid_modifier"] = equippedArmorAcid;
+          update[ra+id+"_cold_modifier"] = equippedArmorCold;
+          update[ra+id+"_electrical_modifier"] = equippedArmorElec;
+          update[ra+id+"_fire_modifier"] = equippedArmorFire;
+          update[ra+id+"_radiation_modifier"] = equippedArmorRad;
+          update[ra+id+"_dicepool_modifier"] = equippedArmorMod;
+          update[ra+id+"_notes"] = equippedArmorDesc;
+        }   
+      } catch (e) {
+        error += "Error with armor: " + e + ". ";
+      }
+      // augmentations
+      try {
+        if (c.gear.augmentations != null) {
+          let augs = [];
+          if (c.gear.augmentations.cyberware != null
+            && c.gear.augmentations.cyberware.item != null) {
+            let cyberware = Array.isArray(c.gear.augmentations.cyberware.item) ? c.gear.augmentations.cyberware.item : [ c.gear.augmentations.cyberware.item ];
+            augs.push(...cyberware);
+          }
+          if (c.gear.augmentations.bioware != null
+            && c.gear.augmentations.bioware.item != null) {
+            let bioware = Array.isArray(c.gear.augmentations.bioware.item) ? c.gear.augmentations.bioware.item : [ c.gear.augmentations.bioware.item ];
+            augs.push(...bioware);
+          }
+          let ra = "repeating_augementations_";
+          augs.forEach((aug) => {
+            let id = generateRowID();
+            update[ra+id+"_augmentation"] = aug._name;
+            update[ra+id+"_essence"] = aug._essencecost;
+            update[ra+id+"_notes"] = aug.description;
+            if (aug._rating != null) {
+              update[ra+id+"_rating"] = aug._rating;
+            } else {
+              update[ra+id+"_rating"] = "1";
+            }
+          });
+        } 
+      } catch (e) {
+        error += "Error with augmentations " + e + ".";
+      }
+      // gear
+      try {
+        if (c.gear.equipment != null && c.gear.equipment.item != null) {
+          let equipment = Array.isArray(c.gear.equipment.item) ? c.gear.equipment.item : [ c.gear.equipment.item ];
+          let ri = "repeating_items_";
+          equipment.forEach((g) => {
+            let id = generateRowID();
+            update[ri+id+"_item"] = g._name;
+            if (g._rating != null) {
+              update[ri+id+"_rating"] = g._rating;
+            } else {
+              update[ri+id+"_rating"] = "1";
+            }
+            if (g._quantity != null) {
+              update[ri+id+"_quantity"] = g._quantity;
+            } else {
+              update[ri+id+"_quantity"] = "1";
+            }
+          });
+        }
+      } catch (e) {
+        error += "Error with equipment " + e + ".";
+      }
+    }
+    // magic
+    if (c.magic != null) {
+      try {
+        if (c.magic.spells != null && c.magic.spells.spell != null) {
+          let spells = Array.isArray(c.magic.spells.spell) ? c.magic.spells.spell : [ c.magic.spells.spell ];
+          spells.forEach((s) => {
+            ["repeating_spell_", "repeating_NPCspell_", "repeating_preps_"].forEach(rs => {
+            if ((s._range.toUpperCase() === "SELF" && rs != "repeating_spell_")
+                || (s._range.toUpperCase() != "SELF" && rs != "repeating_preps_")) {
+                let id = generateRowID();
+
+                update[rs+id+"_category"] = s._category;
+                update[rs+id+"_dice"] = s._casting;
+                update[rs+id+"_name"] = s._name;
+                update[rs+id+"_type"] = s._type;
+                let range = "";
+                if (s._range === "Line-of-Sight") {
+                  range = "LOS";
+                } else if (s._range === "Line-of-Sight (A)") {
+                  range = "LOS (A)";
+                } else if (s._range === "Touch") {
+                  range = "T";
+                } else if (s._range === "Touch (A)") {
+                  range = "T (A)";
+                } else {
+                  range = "Special";
+                }
+                update[rs+id+"_range"] = range;
+                update[rs+id+"_drain"] = s._drainvalue.replace("+", "");
+                update[rs+id+"_description"] = s.description;
+
+                if (s._category.toUpperCase() === "COMBAT") {
+                  let combattype = "";
+                  if (s._subcat.toUpperCase().includes("DIRECT")) {
+                    combattype = "Direct, Force ";
+                  } else if (s._subcat.toUpperCase().includes("INDIRECT")) {
+                    combattype = "Indirect, Force ?{Force|}, AP -";
+                  }
+                  update[rs+id+"_combat_type"] = combattype;
+                }
+
+                let duration = "";
+                if (s._duration.toUpperCase() === "S") {
+                  duration = "Sustained";
+                } else if (s._duration.toUpperCase() === "I") {
+                  duration = "Instant";
+                } else if (s._duration.toUpperCase() === "P") {
+                  duration = "Permanent";
+                } else {
+                  duration = "Special";
+                }
+                update[rs+id+"_duration"] = duration;
+              }
+            });
+          });
+        }
+      } catch (e) {
+        error += "Error with spells " + e + ".";
+      }
+      // powers
+      try {
+        if (c.magic.adeptpowers != null && c.magic.adeptpowers.adeptpower != null) {
+          let powers = Array.isArray(c.magic.adeptpowers.adeptpower) ? c.magic.adeptpowers.adeptpower : [ c.magic.adeptpowers.adeptpower ];
+          let rp = "repeating_powers_";
+          powers.forEach((p) => {
+            let id = generateRowID();
+
+            update[rp+id+"_name"] = p._text;
+            if (p._rating != null) {
+              update[rp+id+"_rating"] = p._rating;
+            }
+            update[rp+id+"_notes"] = p.description;
+          });
+        }
+      } catch (e) {
+        error += "Error with powers " + e + ".";
+      }
+    }
+    // matrix TODO
+    // identities
+    try {
+      if (c.identities != null && c.identities.identity != null) {
+        let lifestyle = Array.isArray(c.identities.identity.lifestyle) ? c.identities.identity.lifestyle : [ c.identities.identity.lifestyle ];
+        update.primary_lifestyle = lifestyle[0]._name;
+        let licenses = Array.isArray(c.identities.identity.license) ? c.identities.identity.license : [ c.identities.identity.license ];
+        let names = []
+        licenses.forEach((l) => {
+          if (l._for != null) {
+            names.push(l._for);
+          }
+        });
+        update.primary_licenses = names.join(", ");
+      }
+    } catch (e) {
+      error += "Error with identities " + e + ".";
+    }
+    // contacts
+    try {
+      if (c.contacts != null && c.contacts.contact != null) {
+        let contacts = Array.isArray(c.contacts.contact) ? c.contacts.contact : [ c.contacts.contact ];
+        let rc = "repeating_contacts_";
+        contacts.forEach((co) => {
+          let id = generateRowID();
+
+          update[rc+id+"_name"] = co._name;
+          update[rc+id+"_loyalty"] = co._loyalty;
+          update[rc+id+"_connection"] = co._connection;
+        });
+      }
+    } catch (e) {
+      error += "Error with contacts " + e + ".";
+    }
+  }
+  if (error != "") {
+    update.chummer_text = error;
+  } else {
+    update.chummer_text = "Compelete! Be sure to review everything and add matrix.\nBe sure to set primary weapons and armor, set specializations for spells/weapons/etc.\nSet modifiers applied from Adept powers/cyberware."
+  }
+  setAttrs(update);
+};
 
 
 </script>
