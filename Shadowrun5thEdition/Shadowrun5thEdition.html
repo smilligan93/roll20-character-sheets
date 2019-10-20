@@ -4411,6 +4411,7 @@
 						update[`repeating_quality_${id}_flag`] = "display";
 						update[`repeating_quality_${id}_quality`] = quality.name;
 						update[`repeating_quality_${id}_type`] = (quality.qualitytype === "Positive") ? "P" : "N";
+            update[`repeating_quality_${id}_notes`] = (quality.description != null) ? quality.description : "";
 					} catch (error) {
 						setText["error"] += addFeedback(JSON.stringify(quality), error);
 					};
@@ -4680,7 +4681,13 @@
 						update[`${section}_augmentation`] = ware.name;
 						update[`${section}_rating`]       = ware.rating;
 						update[`${section}_essence`]      = ware.ess;
-						update[`${section}_notes`]        = `Grade: ${ware.grade}`;
+
+            let notes = "";
+            notes += `Grade: ${ware.grade}`;
+            if (ware.description != null) {
+              notes += `. ${ware.description}`;
+            }
+						update[`${section}_notes`] = notes ;
 
 						if (ware.gears != null && ware.gears.gear != null) {
 							const wareGearList = getArray(ware.gears.gear);
@@ -4745,6 +4752,9 @@
 										gearNotes += `${child.name}, `;
 								});
 							};
+              if (gear.description != null) {
+                gearNotes += `${gear.description}`;
+              }
 
 							update[`${section}_notes`] = gearNotes;
 						}
@@ -4804,9 +4814,15 @@
 							"Special";
 
 						// NOTES
-						if (spell.descriptors != null) {
-				            update[`${section}_notes`] = spell.descriptors;
-				         }
+            let notes = ""
+            if (spell.descriptors != null) {
+               notes += spell.descriptors;
+            }
+            if (spell.description != null) {
+              notes += (notes != "" ? ". " : "");
+              notes += spell.description;
+            }
+            update[`${section}_notes`] = notes;
 					} catch (error) {
 						setText["error"] += addFeedback(JSON.stringify(spell.name), error);
 					}
@@ -4823,6 +4839,7 @@
 
 						update[`${section}_name`] = (power.fullname != null) ? power.fullname : power.name;
 						update[`${section}_rating`] = power.rating;
+            update[`${section}_notes`] = (power.description != null) ? power.description : "";
 
 						 if (power.totalpoints != null) {
 						 	update[`${section}_notes`] = `Total Points: ${power.totalpoints}.`;
