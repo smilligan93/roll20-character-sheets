@@ -20,8 +20,9 @@
 	</div>
 	<div class="tab-toggles">
 		<input type="hidden" name="attr_wound_toggle" value="@{wounds}" /><button type="action" name="act_wound" title="@{wound_toggle}" data-i18n="wounds">wounds</button>
-		<input type="hidden" name="attr_modifier_toggle" value="?{Modifiers +/-|0}" /><button type="action" name="act_modifier" title="@{modifier_toggle}" data-i18n="modifiers">modifiers</button>
+    <input type="hidden" name="attr_modifier_toggle" value="?{Modifiers +/-|@{modifier_value}}" /><button type="action" name="act_modifier" title="@{modifier_toggle}" data-i18n="modifiers">modifiers</button>
     <input type="hidden" name="attr_edge_toggle" value="@{edge}" /><button type="action" name="act_edge" title="@{edge_toggle}" data-i18n="edge">edge</button>
+    <input type="hidden" name="attr_modifier_value" value="0" />
 		<button type="roll" value="@{gm_toggle} &{template:rolls}{{header=^{d6}}}{{base=^{d6}}}{{dice=[[(?{d6s|0}d6>5)]]}}" title="Roll D6s"><span class="d6">L</span></button>
 	</div>
 	<div class="tab-col">
@@ -3296,7 +3297,7 @@
 	 	const attr = eventinfo.triggerName.split("clicked:")[1];
 		getAttrs([`${attr}_toggle`], (v) => {
 			const value = v[`${attr}_toggle`];
-			const change = (attr === "wound" && value != "@{wounds}") ? "@{wounds}" : (attr === "edge" && value != "@{edge}") ? "@{edge}" : (attr === "modifier" && value != "?{Modifiers +/-|0}") ? "?{Modifiers +/-|0}" : 0;
+      const change = (attr === "wound" && value != "@{wounds}") ? "@{wounds}" : (attr === "edge" && value != "@{edge}") ? "@{edge}" : (attr === "modifier" && value != "?{Modifiers +/-|@{modifier_value}}") ? "?{Modifiers +/-|@{modifier_value}}" : 0;
 
 			setAttrs({
 				[`${attr}_toggle`]: change
